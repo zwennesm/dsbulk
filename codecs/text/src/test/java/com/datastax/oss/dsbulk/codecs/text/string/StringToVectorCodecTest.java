@@ -15,6 +15,15 @@
  */
 package com.datastax.oss.dsbulk.codecs.text.string;
 
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.BOOLEAN_INPUT_WORDS;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.BOOLEAN_NUMBERS;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.EPOCH;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.NUMBER_FORMAT;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.OVERFLOW_STRATEGY;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.ROUNDING_MODE;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.TIMESTAMP_FORMAT;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.TIME_UNIT;
+import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.TIME_ZONE;
 import static com.datastax.oss.dsbulk.tests.assertions.TestAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -24,8 +33,12 @@ import com.datastax.oss.driver.api.core.type.DataTypes;
 import com.datastax.oss.driver.api.core.type.codec.TypeCodecs;
 import com.datastax.oss.driver.internal.core.type.DefaultVectorType;
 import com.datastax.oss.driver.internal.core.type.codec.VectorCodec;
+import com.datastax.oss.driver.shaded.guava.common.collect.ImmutableList;
 import com.datastax.oss.driver.shaded.guava.common.collect.Lists;
+import com.datastax.oss.dsbulk.codecs.api.CommonConversionContext;
+import com.datastax.oss.dsbulk.codecs.api.ConversionContext;
 import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class StringToVectorCodecTest {
@@ -35,8 +48,26 @@ public class StringToVectorCodecTest {
   private final VectorCodec vectorCodec =
       new VectorCodec(new DefaultVectorType(DataTypes.FLOAT, 5), TypeCodecs.FLOAT);
 
-  private final StringToVectorCodec dsbulkCodec =
-      new StringToVectorCodec(vectorCodec, Lists.newArrayList("NULL"));
+  private final StringToVectorCodec dsbulkCodec;
+
+  public StringToVectorCodecTest() {
+
+    ConversionContext context = new CommonConversionContext();
+    List<String> nullStrings = ImmutableList.of();
+    StringToFloatCodec stringCodec =
+        new StringToFloatCodec(
+            context.getAttribute(NUMBER_FORMAT),
+            context.getAttribute(OVERFLOW_STRATEGY),
+            context.getAttribute(ROUNDING_MODE),
+            context.getAttribute(TIMESTAMP_FORMAT),
+            context.getAttribute(TIME_ZONE),
+            context.getAttribute(TIME_UNIT),
+            context.getAttribute(EPOCH),
+            context.getAttribute(BOOLEAN_INPUT_WORDS),
+            context.getAttribute(BOOLEAN_NUMBERS),
+            nullStrings);
+    dsbulkCodec = new StringToVectorCodec(vectorCodec, stringCodec, nullStrings);
+  }
 
   @Test
   void should_convert_from_valid_external() {
@@ -87,5 +118,13 @@ public class StringToVectorCodecTest {
     assertThat(dsbulkCodec.encode(tooManyString, ProtocolVersion.DEFAULT)).isNotNull();
     assertThatThrownBy(() -> dsbulkCodec.encode(tooFewString, ProtocolVersion.DEFAULT))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  /* Issue 484: now that we're using the dsbulk string-to-subtype converters we should get
+   * enforcement of existing dsbulk policies.  For our purposes that means the failure on
+   * arithmetic overflow */
+  @Test
+  void should_not_convert_too_much_precision() {
+    assertThat(dsbulkCodec).cannotConvertFromInternal("6.646329843");
   }
 }

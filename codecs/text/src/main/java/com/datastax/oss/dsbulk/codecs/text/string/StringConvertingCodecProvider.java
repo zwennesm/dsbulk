@@ -339,6 +339,7 @@ public class StringConvertingCodecProvider implements ConvertingCodecProvider {
                   new VectorCodec(
                       vectorType,
                       codecFactory.getCodecRegistry().codecFor(vectorType.getElementType())),
+                  createStringConvertingCodec(vectorType.getElementType(), codecFactory, false),
                   nullStrings);
           }
         }
