@@ -125,6 +125,9 @@ public class StringToVectorCodecTest {
    * arithmetic overflow */
   @Test
   void should_not_convert_too_much_precision() {
-    assertThat(dsbulkCodec).cannotConvertFromInternal("6.646329843");
+    String tooPreciseVal = "6.646329843";
+    assertThat(dsbulkCodec).cannotConvertFromInternal(tooPreciseVal);
+    assertThatThrownBy(() -> dsbulkCodec.encode(tooPreciseVal, ProtocolVersion.DEFAULT))
+        .isInstanceOf(ArithmeticException.class);
   }
 }

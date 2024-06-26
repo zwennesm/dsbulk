@@ -104,4 +104,16 @@ public class JsonNodeToVectorCodecTest {
     assertThatThrownBy(() -> dsbulkCodec.encode(tooFewNode, ProtocolVersion.DEFAULT))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  /* Issue 484: now that we're using the dsbulk string-to-subtype converters we should get
+   * enforcement of existing dsbulk policies.  For our purposes that means the failure on
+   * arithmetic overflow */
+  @Test
+  void should_not_convert_too_much_precision() {
+    ArrayNode tooPreciseNode = JSON_NODE_FACTORY.arrayNode();
+    tooPreciseNode.add(JSON_NODE_FACTORY.numberNode(6.646329843));
+    assertThat(dsbulkCodec).cannotConvertFromInternal(tooPreciseNode);
+    assertThatThrownBy(() -> dsbulkCodec.encode(tooPreciseNode, ProtocolVersion.DEFAULT))
+        .isInstanceOf(ArithmeticException.class);
+  }
 }
