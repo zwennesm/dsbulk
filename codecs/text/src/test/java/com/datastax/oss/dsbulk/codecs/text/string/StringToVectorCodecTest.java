@@ -15,15 +15,6 @@
  */
 package com.datastax.oss.dsbulk.codecs.text.string;
 
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.BOOLEAN_INPUT_WORDS;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.BOOLEAN_NUMBERS;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.EPOCH;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.NUMBER_FORMAT;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.OVERFLOW_STRATEGY;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.ROUNDING_MODE;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.TIMESTAMP_FORMAT;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.TIME_UNIT;
-import static com.datastax.oss.dsbulk.codecs.api.CommonConversionContext.TIME_ZONE;
 import static com.datastax.oss.dsbulk.tests.assertions.TestAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -31,48 +22,45 @@ import com.datastax.oss.driver.api.core.ProtocolVersion;
 import com.datastax.oss.driver.api.core.data.CqlVector;
 import com.datastax.oss.driver.api.core.type.DataTypes;
 import com.datastax.oss.driver.api.core.type.codec.TypeCodecs;
+import com.datastax.oss.driver.api.core.type.reflect.GenericType;
 import com.datastax.oss.driver.internal.core.type.DefaultVectorType;
 import com.datastax.oss.driver.internal.core.type.codec.VectorCodec;
-import com.datastax.oss.driver.shaded.guava.common.collect.ImmutableList;
 import com.datastax.oss.driver.shaded.guava.common.collect.Lists;
-import com.datastax.oss.dsbulk.codecs.api.CommonConversionContext;
 import com.datastax.oss.dsbulk.codecs.api.ConversionContext;
+import com.datastax.oss.dsbulk.codecs.api.ConvertingCodecFactory;
+import com.datastax.oss.dsbulk.codecs.text.TextConversionContext;
 import java.util.ArrayList;
-import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class StringToVectorCodecTest {
 
   private final ArrayList<Float> values = Lists.newArrayList(1.1f, 2.2f, 3.3f, 4.4f, 5.5f);
-  private final CqlVector vector = CqlVector.newInstance(values);
-  private final VectorCodec vectorCodec =
-      new VectorCodec(new DefaultVectorType(DataTypes.FLOAT, 5), TypeCodecs.FLOAT);
+  private final CqlVector<Float> vector = CqlVector.newInstance(values);
+  private final VectorCodec<Float> vectorCodec =
+      new VectorCodec<>(new DefaultVectorType(DataTypes.FLOAT, 5), TypeCodecs.FLOAT);
 
-  private final StringToVectorCodec dsbulkCodec;
+  private StringToVectorCodec<Float> codec;
 
-  public StringToVectorCodecTest() {
-
-    ConversionContext context = new CommonConversionContext();
-    List<String> nullStrings = ImmutableList.of();
-    StringToFloatCodec stringCodec =
-        new StringToFloatCodec(
-            context.getAttribute(NUMBER_FORMAT),
-            context.getAttribute(OVERFLOW_STRATEGY),
-            context.getAttribute(ROUNDING_MODE),
-            context.getAttribute(TIMESTAMP_FORMAT),
-            context.getAttribute(TIME_ZONE),
-            context.getAttribute(TIME_UNIT),
-            context.getAttribute(EPOCH),
-            context.getAttribute(BOOLEAN_INPUT_WORDS),
-            context.getAttribute(BOOLEAN_NUMBERS),
-            nullStrings);
-    dsbulkCodec = new StringToVectorCodec(vectorCodec, stringCodec, nullStrings);
+  @BeforeEach
+  void setUp() {
+    ConversionContext context = new TextConversionContext().setNullStrings("NULL");
+    ConvertingCodecFactory codecFactory = new ConvertingCodecFactory(context);
+    codec =
+        (StringToVectorCodec<Float>)
+            codecFactory.<String, CqlVector<Float>>createConvertingCodec(
+                DataTypes.vectorOf(DataTypes.FLOAT, 5), GenericType.STRING, true);
   }
 
   @Test
   void should_convert_from_valid_external() {
-    assertThat(dsbulkCodec)
-        .convertsFromExternal(vectorCodec.format(vector)) // standard pattern
+    assertThat(codec)
+        .convertsFromExternal(
+            vectorCodec.format(vector)) // CQL representation is parsable as a json array
+        .toInternal(vector)
+        .convertsFromExternal("[1.1,2.2,3.3,4.4,5.5]")
+        .toInternal(vector)
+        .convertsFromExternal("[1.1000,2.2000,3.3000,4.4000,5.5000]")
         .toInternal(vector)
         .convertsFromExternal("")
         .toInternal(null)
@@ -84,50 +72,46 @@ public class StringToVectorCodecTest {
 
   @Test
   void should_convert_from_valid_internal() {
-    assertThat(dsbulkCodec)
+    assertThat(codec)
         .convertsFromInternal(vector)
-        .toExternal(vectorCodec.format(vector))
+        .toExternal(
+            "[1.1,2.2,3.3,4.4,5.5]") // this is NOT 100% identical to vector CQL representation
         .convertsFromInternal(null)
         .toExternal("NULL");
-
-    // We should encode
   }
 
   @Test
-  void should_not_convert_from_invalid_internal() {
-    assertThat(dsbulkCodec).cannotConvertFromInternal("not a valid vector");
+  void should_not_convert_from_invalid_external() {
+    assertThat(codec).cannotConvertFromExternal("[6.646329843]");
   }
 
   // To keep usage consistent with VectorCodec we confirm that we support encoding when too many
-  // elements are
-  // available but not when too few are.  Note that it's actually VectorCodec that enforces this
-  // constraint so we
-  // have to go through encode() rather than the internal/external methods.
+  // elements are available but not when too few are.  Note that it's actually VectorCodec that
+  // enforces this constraint so we have to go through encode() rather than the internal/external
+  // methods.
   @Test
   void should_encode_too_many_but_not_too_few() {
 
     ArrayList<Float> tooMany = Lists.newArrayList(values);
     tooMany.add(6.6f);
     CqlVector<Float> tooManyVector = CqlVector.newInstance(tooMany);
-    String tooManyString = dsbulkCodec.internalToExternal(tooManyVector);
+    String tooManyString = codec.internalToExternal(tooManyVector);
     ArrayList<Float> tooFew = Lists.newArrayList(values);
     tooFew.remove(0);
     CqlVector<Float> tooFewVector = CqlVector.newInstance(tooFew);
-    String tooFewString = dsbulkCodec.internalToExternal(tooFewVector);
+    String tooFewString = codec.internalToExternal(tooFewVector);
 
-    assertThat(dsbulkCodec.encode(tooManyString, ProtocolVersion.DEFAULT)).isNotNull();
-    assertThatThrownBy(() -> dsbulkCodec.encode(tooFewString, ProtocolVersion.DEFAULT))
+    assertThat(codec.encode(tooManyString, ProtocolVersion.DEFAULT)).isNotNull();
+    assertThatThrownBy(() -> codec.encode(tooFewString, ProtocolVersion.DEFAULT))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
-  /* Issue 484: now that we're using the dsbulk string-to-subtype converters we should get
-   * enforcement of existing dsbulk policies.  For our purposes that means the failure on
-   * arithmetic overflow */
+  // Issue 484: now that we're using the dsbulk string-to-subtype converters we should get
+  // enforcement of existing dsbulk policies.  For our purposes that means the failure on
+  // arithmetic overflow.
   @Test
   void should_not_convert_too_much_precision() {
-    String tooPreciseVal = "6.646329843";
-    assertThat(dsbulkCodec).cannotConvertFromInternal(tooPreciseVal);
-    assertThatThrownBy(() -> dsbulkCodec.encode(tooPreciseVal, ProtocolVersion.DEFAULT))
+    assertThatThrownBy(() -> codec.encode("6.646329843", ProtocolVersion.DEFAULT))
         .isInstanceOf(ArithmeticException.class);
   }
 }
