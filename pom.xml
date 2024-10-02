@@ -63,19 +63,19 @@
     <reactive-streams.version>1.0.3</reactive-streams.version>
     <reactor.version>2020.0.19</reactor.version>
     <config.version>1.4.2</config.version>
-    <netty.version>4.1.94.Final</netty.version>
+    <netty.version>4.1.113.Final</netty.version>
     <!-- Note: Caffeine 3 requires java 11 or higher -->
     <caffeine.version>2.9.3</caffeine.version>
     <jctools.version>3.3.0</jctools.version>
     <slf4j.version>1.7.36</slf4j.version>
-    <logback.version>1.2.11</logback.version>
+    <logback.version>1.5.8</logback.version>
     <metrics.version>4.2.9</metrics.version>
     <lz4.version>1.8.0</lz4.version>
-    <snappy.version>1.1.7.3</snappy.version>
+    <snappy.version>1.1.10.7</snappy.version>
     <hdr.version>2.1.12</hdr.version>
-    <jackson.version>2.13.3</jackson.version>
+    <jackson.version>2.18.0</jackson.version>
     <univocity.version>2.9.1</univocity.version>
-    <commons-compress.version>1.21</commons-compress.version>
+    <commons-compress.version>1.27.1</commons-compress.version>
     <compress.zstd.version>1.5.2-1</compress.zstd.version>
     <compress.xz.version>1.9</compress.xz.version>
     <compress.brotli.version>0.1.2</compress.brotli.version>
@@ -84,7 +84,7 @@
     <spotbugs.version>4.5.3</spotbugs.version>
     <esri.version>1.2.1</esri.version>
     <jackson-core-asl.version>1.9.13</jackson-core-asl.version>
-    <org-json.version>20220320</org-json.version>
+    <org-json.version>20240303</org-json.version>
     <jansi.version>1.18</jansi.version>
     <aws.sdk.version>2.17.121</aws.sdk.version>
     <prometheus.client.version>0.15.0</prometheus.client.version>
@@ -191,7 +191,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-text</artifactId>
-        <version>1.9</version>
+        <version>1.12.0</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
